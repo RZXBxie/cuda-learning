@@ -15,7 +15,8 @@ set(CMAKE_CUDA_STANDARD 17)
 
 # 如果 reduce.cu 里有 main()，用这行（可执行文件）：
 add_executable(reduce reduce.cu
-        reduceRoll.cu)
+        reduceRoll.cu
+        dynamic_parallel.cu)
 # 如果 reduce.cu 只是 kernel、没有 main()，改用这行，
 # 这样没显卡、没 main 也能正常构建，CLion 补全不受影响：
 # add_library(reduce STATIC reduce.cu)
