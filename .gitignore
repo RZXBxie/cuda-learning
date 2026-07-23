@@ -1,0 +1,47 @@
+# ---- 构建产物 ----
+build/
+cmake-build-*/
+cmake-build-debug/
+cmake-build-release/
+
+# CMake 生成文件
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# ---- 编译 / 链接产物 ----
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# ---- CUDA 相关 ----
+*.ptx
+*.cubin
+*.fatbin
+*.i
+*.ii
+
+# ---- IDE / 编辑器配置 ----
+.idea/
+.vscode/
+*.iml
+*.user
+
+# ---- 工具 ----
+.claude
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db
