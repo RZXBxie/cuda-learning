@@ -101,7 +101,10 @@ __global__ void reduceUnrollWarp8(int *g_idata, int *g_odata, const int size) {
 
 }
 
-__global__ void reduceCompleteUnrollWarp8(int *g_idata, int *g_odata, const int size) {
+// 终极优化版：blockSize 作为模板参数在编译期已知，
+// 下面的 if (blockSize >= N) 判断会在编译期被裁剪成死分支，不产生运行时开销。
+template<int blockSize>
+__global__ void reduceComplete(int *g_idata, int *g_odata, const int size) {
     const unsigned int tid = threadIdx.x;
     int *idata = blockDim.x * blockIdx.x * 8 + g_idata;
     if (tid + blockDim.x * 7 < size) {
@@ -115,19 +118,19 @@ __global__ void reduceCompleteUnrollWarp8(int *g_idata, int *g_odata, const int 
         int a8 = idata[tid + blockDim.x * 7];
         idata[tid] = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
     }
-    if (blockDim.x >= 1024 && tid < 512) {
+    if (blockSize >= 1024 && tid < 512) {
         idata[tid] += idata[tid + 512];
     }
     __syncthreads();
-    if (blockDim.x >= 512 && tid < 256) {
+    if (blockSize >= 512 && tid < 256) {
         idata[tid] += idata[tid + 256];
     }
     __syncthreads();
-    if (blockDim.x >= 256 && tid < 128) {
+    if (blockSize >= 256 && tid < 128) {
         idata[tid] += idata[tid + 128];
     }
     __syncthreads();
-    if (blockDim.x >= 128 && tid < 64) {
+    if (blockSize >= 128 && tid < 64) {
         idata[tid] += idata[tid + 64];
     }
     __syncthreads();
