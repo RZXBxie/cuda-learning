@@ -17,7 +17,12 @@ set(CMAKE_CUDA_STANDARD 17)
 # 在 add_subdirectory 之前设置,各子目录自动继承。
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
+# 公共头文件(cuda_utils.cuh 等)所在目录,各子目录自动继承,
+# 于是任意 .cu 里都能 #include <cuda_utils.cuh>。
+include_directories(${CMAKE_SOURCE_DIR}/common)
+
 add_subdirectory(Samples/memoryBandwidth)
 add_subdirectory(Samples/reduction)
 add_subdirectory(Samples/reductionUnroll)
 add_subdirectory(Samples/dynamicParallelism)
+add_subdirectory(Samples/memoryAccess)

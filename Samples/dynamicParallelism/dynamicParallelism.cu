@@ -1,5 +1,4 @@
-#include <cuda_runtime.h>
-#include <cstdio>
+#include <cuda_utils.cuh>
 
 __global__ void nestHelloWorld(const int size, int depth) {
     const unsigned int tid = threadIdx.x;
@@ -16,10 +15,9 @@ int main() {
     constexpr int size = 64;
     constexpr int block_x = 2;
     dim3 block(block_x, 1);
-    dim3 grid((size - 1) / block.x + 1, 1);
+    dim3 grid(divUp(size, block.x), 1);
     nestHelloWorld<<<grid, block>>>(size, 0);
-    cudaGetLastError();
-    cudaDeviceSynchronize();
+    CUDA_CHECK_KERNEL();
 
     return 0;
 }

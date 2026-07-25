@@ -1,4 +1,4 @@
-#include <cstdio>
+#include <cuda_utils.cuh>
 __global__ void reduceUnroll2(int *g_idata, int *g_odata, const int size) {
     const unsigned int tid = threadIdx.x;
     int *idata = g_idata + blockDim.x * blockIdx.x * 2;
@@ -160,50 +160,47 @@ int main() {
 
     int *h_idata = static_cast<int *>(malloc(nBytes));
     int *h_odata = static_cast<int *>(malloc(grid2.x * sizeof(int)));
-
-    for (int i = 0; i < size; ++i) {
-        h_idata[i] = 1;
-    }
+    initData(h_idata, size);               // 全填 1,归约结果应等于 size。
 
     int *d_idata, *d_odata;
-    cudaMalloc(reinterpret_cast<void**>(&d_idata), nBytes);
-    cudaMalloc(reinterpret_cast<void**>(&d_odata), grid2.x * sizeof(int));
-    cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_idata), nBytes));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_odata), grid2.x * sizeof(int)));
+    CUDA_CHECK(cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice));
 
     reduceUnroll2<<<grid2, block>>>(d_idata, d_odata, size);
-    cudaDeviceSynchronize();
-    cudaMemcpy(h_odata, d_odata, grid2.x * sizeof(int), cudaMemcpyDeviceToHost);
+    CUDA_CHECK_KERNEL();
+    CUDA_CHECK(cudaMemcpy(h_odata, d_odata, grid2.x * sizeof(int), cudaMemcpyDeviceToHost));
     printf("the first num of h_odata is: %d\n", h_odata[0]);
 
     dim3 grid4(rawGridSize / 4, 1);
-    cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice));
     reduceUnroll4<<<grid4, block>>>(d_idata, d_odata, size);
-    cudaDeviceSynchronize();
-    cudaMemcpy(h_odata, d_odata, grid4.x * sizeof(int), cudaMemcpyDeviceToHost);
+    CUDA_CHECK_KERNEL();
+    CUDA_CHECK(cudaMemcpy(h_odata, d_odata, grid4.x * sizeof(int), cudaMemcpyDeviceToHost));
     printf("the first num of h_odata is: %d\n", h_odata[0]);
 
     dim3 grid8(rawGridSize / 8, 1);
-    cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice));
     reduceUnroll8<<<grid8, block>>>(d_idata, d_odata, size);
-    cudaDeviceSynchronize();
-    cudaMemcpy(h_odata, d_odata, grid4.x * sizeof(int), cudaMemcpyDeviceToHost);
+    CUDA_CHECK_KERNEL();
+    CUDA_CHECK(cudaMemcpy(h_odata, d_odata, grid4.x * sizeof(int), cudaMemcpyDeviceToHost));
     printf("the first num of h_odata is: %d\n", h_odata[0]);
 
-    cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice));
     reduceUnrollWarp8<<<grid8, block>>>(d_idata, d_odata, size);
-    cudaDeviceSynchronize();
-    cudaMemcpy(h_odata, d_odata, grid4.x * sizeof(int), cudaMemcpyDeviceToHost);
+    CUDA_CHECK_KERNEL();
+    CUDA_CHECK(cudaMemcpy(h_odata, d_odata, grid4.x * sizeof(int), cudaMemcpyDeviceToHost));
     printf("the first num of h_odata is: %d\n", h_odata[0]);
 
     // 终极优化版：模板参数传入编译期已知的 blockSize
-    cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice);
+    CUDA_CHECK(cudaMemcpy(d_idata, h_idata, nBytes, cudaMemcpyHostToDevice));
     reduceComplete<blockSize><<<grid8, block>>>(d_idata, d_odata, size);
-    cudaDeviceSynchronize();
-    cudaMemcpy(h_odata, d_odata, grid8.x * sizeof(int), cudaMemcpyDeviceToHost);
+    CUDA_CHECK_KERNEL();
+    CUDA_CHECK(cudaMemcpy(h_odata, d_odata, grid8.x * sizeof(int), cudaMemcpyDeviceToHost));
     printf("the first num of h_odata is: %d\n", h_odata[0]);
 
-    cudaFree(d_idata);
-    cudaFree(d_odata);
+    CUDA_CHECK(cudaFree(d_idata));
+    CUDA_CHECK(cudaFree(d_odata));
     free(h_idata);
     free(h_odata);
 

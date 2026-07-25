@@ -1,27 +1,9 @@
-#include <cstdio>
-#include <cstdlib>
-
-#define CUDA_CHECK(call)                                                      \
-    do {                                                                      \
-        cudaError_t err_ = (call);                                            \
-        if (err_ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error %s:%d: %s\n",                         \
-                    __FILE__, __LINE__, cudaGetErrorString(err_));            \
-            exit(EXIT_FAILURE);                                               \
-        }                                                                     \
-    } while (0)
+#include <cuda_utils.cuh>
 
 __global__ void sumArray(const float* a, const float* b, float* res, const int offset, const int size) {
     const int i = blockDim.x * blockIdx.x + threadIdx.x;
     if (const int k = i + offset; k < size) {
         res[i] = a[k] + b[k];
-    }
-}
-
-template<typename T>
-void initArray(T* arr, const int n, T value) {
-    for (int i = 0; i < n; ++i) {
-        arr[i] = value;
     }
 }
 
@@ -42,8 +24,8 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaMallocHost(reinterpret_cast<void **>(&res_h), bytes));
 
     memset(res_h, 0, bytes);
-    initArray(a_h, size, 1.0f);
-    initArray(b_h, size, 2.0f);
+    initData(a_h, size, 1.0f);
+    initData(b_h, size, 2.0f);
 
     // Device 端用 cudaMalloc：kernel 真正读写的显存。
     float *a_d = nullptr, *b_d = nullptr, *res_d = nullptr;
@@ -55,11 +37,10 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaMemcpy(b_d, b_h, bytes, cudaMemcpyHostToDevice));
 
     dim3 block(1024);
-    dim3 grid((size - 1) / block.x + 1);
+    dim3 grid(divUp(size, block.x));
 
     sumArray<<<grid, block>>>(a_d, b_d, res_d, offset, size);
-    CUDA_CHECK(cudaGetLastError());        // 捕获 kernel 启动错误
-    CUDA_CHECK(cudaDeviceSynchronize());   // 捕获 kernel 执行错误
+    CUDA_CHECK_KERNEL();                    // 捕获 kernel 启动 + 执行错误
 
     // 把结果拷回 host。
     CUDA_CHECK(cudaMemcpy(res_h, res_d, bytes, cudaMemcpyDeviceToHost));

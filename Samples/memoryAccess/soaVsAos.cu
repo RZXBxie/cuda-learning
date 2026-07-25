@@ -1,15 +1,4 @@
-#include <cstdio>
-#include <cstdlib>
-
-#define CUDA_CHECK(call)                                                      \
-    do {                                                                      \
-        cudaError_t err_ = (call);                                            \
-        if (err_ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error %s:%d: %s\n",                         \
-                    __FILE__, __LINE__, cudaGetErrorString(err_));            \
-            exit(EXIT_FAILURE);                                               \
-        }                                                                     \
-    } while (0)
+#include <cuda_utils.cuh>
 
 // ---------------------------------------------------------------------------
 // 数据布局
@@ -52,37 +41,15 @@ __global__ void updateSoA(float* x, const int n) {
 }
 
 // ---------------------------------------------------------------------------
-// 计时辅助：跑一次 kernel 并返回耗时(ms)。用函数指针把两种 kernel 统一起来。
+// 计时辅助由 cuda_utils.cuh 的 timeKernel 提供。
 // ---------------------------------------------------------------------------
-template<typename Launch>
-float timeKernel(Launch launch, const int iters) {
-    cudaEvent_t start, stop;
-    CUDA_CHECK(cudaEventCreate(&start));
-    CUDA_CHECK(cudaEventCreate(&stop));
-
-    launch();                              // 预热一次：排除首次启动/JIT 的开销。
-    CUDA_CHECK(cudaDeviceSynchronize());
-
-    CUDA_CHECK(cudaEventRecord(start));
-    for (int it = 0; it < iters; ++it) {
-        launch();
-    }
-    CUDA_CHECK(cudaEventRecord(stop));
-    CUDA_CHECK(cudaEventSynchronize(stop));
-
-    float ms = 0.0f;
-    CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-    CUDA_CHECK(cudaEventDestroy(start));
-    CUDA_CHECK(cudaEventDestroy(stop));
-    return ms / iters;                     // 返回单次平均耗时。
-}
 
 int main() {
     constexpr int n     = 1 << 24;         // ~1600 万个粒子。
     constexpr int iters = 100;             // 多跑几次取平均，读数更稳。
 
     dim3 block(256);
-    dim3 grid((n - 1) / block.x + 1);
+    dim3 grid(divUp(n, block.x));
 
     // --- AoS：一块连续显存，元素是 Particle ---
     Particle* aos_d = nullptr;
@@ -103,7 +70,7 @@ int main() {
 
     // 有效带宽：只统计我们真正想要的数据(x)，读+写各一遍 => 2 * n * 4B。
     // AoS 实际还搬运了没用的 y/z，所以同样的"有效字节数"下耗时更长、有效带宽更低。
-    auto gbps = [](float ms) { return 2.0 * n * sizeof(float) / (ms / 1e3) / 1e9; };
+    auto gbps = [](float ms) { return effectiveGBps(2.0 * n * sizeof(float), ms); };
 
     printf("n = %d particles, iters = %d\n\n", n, iters);
     printf("AoS: %7.4f ms/iter,  effective BW = %6.1f GB/s\n", aosMs, gbps(aosMs));
