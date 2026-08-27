@@ -118,6 +118,7 @@ __global__ void reduceComplete(int *g_idata, int *g_odata, const int size) {
         int a8 = idata[tid + blockDim.x * 7];
         idata[tid] = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
     }
+    __syncthreads();
     if (blockSize >= 1024 && tid < 512) {
         idata[tid] += idata[tid + 512];
     }
