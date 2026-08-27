@@ -18,21 +18,39 @@ Commit messages follow Conventional Commits with Chinese subjects (`feat: 学习
 
 ## Build and run
 
-```bash
-cmake --build build              # incremental build of everything (Makefiles generator)
-cmake -S . -B build              # reconfigure from scratch if needed
-./bin/transpose 2 32 32          # run a sample; binaries all land in ./bin
+Windows(当前开发机:RTX 3060 Laptop = sm_86,CUDA Toolkit 13.3,VS 2026 MSVC 14.51):
+
+```bat
+build.cmd                        :: 一键配置 + 构建全部 sample(Release,Ninja)
+build.cmd Release reduction      :: 只构建单个 target
+bin\transpose.exe 2 32 32        :: 跑 sample;可执行文件全部落在 bin\
 ```
 
-`cmake-build-debug/` is CLion's own Ninja-generated tree — leave it alone and use
-`build/` from the CLI. Both are gitignored, as is `bin/`.
+`build.cmd` 自己用 `vswhere` 找 MSVC 并 `call vcvars64.bat`(nvcc 需要 `cl.exe` 作
+host 编译器),PATH 里没有 cmake/ninja 时退回 Visual Studio 自带的那份,再按
+`CUDA_PATH` 找 nvcc。手动在 *x64 Native Tools 命令提示符* 里也可以:
+
+```bat
+cmake --preset ninja-release
+cmake --build --preset ninja-release
+```
+
+Linux / 容器:
+
+```bash
+cmake -S . -B build && cmake --build build
+```
+
+`cmake-build-*/` 是 CLion 自己的构建树 —— 别去动,命令行统一用 `build/`。三者都被
+gitignore,`bin/` 也是。
 
 There is no lint step and no tests. To "test" a change, build it and run the affected
 binary; samples self-check with `checkResult` and print `result check SUCCESS/FAIL`.
 
-**This dev container has no GPU** (no `/dev/nvidia*`, no `nvidia-smi`). Code compiles
-fine, but any binary will fail at the first CUDA call. Don't interpret a runtime CUDA
-error here as a bug in the code, and don't report timing numbers you couldn't measure.
+**注意 Windows 上 CUDA Toolkit 装在非默认目录时**(本机是 `F:\software\NVIDIA`),
+安装器不会写 `CUDA_PATH`,CMake 与 `build.cmd` 都会找不到 nvcc。已设好用户环境变量
+`CUDA_PATH`;换机器时同样先设它,或配置时传
+`-DCMAKE_CUDA_COMPILER=<toolkit>/bin/nvcc.exe`。
 
 ## Build-system structure
 
@@ -40,8 +58,16 @@ The root `CMakeLists.txt` does all the real configuration; per-sample `CMakeList
 files are usually a single `add_executable` line.
 
 Two settings must stay **before** `project()` or they silently don't apply:
-- `CMAKE_CUDA_ARCHITECTURES 75` — also avoids CMake probing for a GPU that isn't here.
-- `CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc` — CLion's env lacks `/usr/local/cuda/bin` on `PATH`.
+- `CMAKE_CUDA_ARCHITECTURES`(默认 86,`-DCMAKE_CUDA_ARCHITECTURES=75` 之类可覆盖)
+  — 显式给死还能省掉 CMake 探测显卡的一步。
+- `CMAKE_CUDA_COMPILER` — 由一段 `find_program` 兜底查找:先看
+  `CUDAToolkit_ROOT` / `CUDA_PATH` / `CUDA_HOME`,再看 PATH 和 Windows/Linux 的默认
+  安装位置;找不到就直接 `FATAL_ERROR` 提示怎么修。CLion 和刚开的终端常常没把
+  toolkit 的 bin 放进 PATH,靠的就是这段。
+
+MSVC 下还额外加了 `/utf-8`(CUDA 侧用 `-Xcompiler=/utf-8`):源码里全是 UTF-8 中文
+注释,不加 cl 会按 GBK 猜、刷满 C4819 警告。多配置生成器的
+`CMAKE_RUNTIME_OUTPUT_DIRECTORY_<CONFIG>` 也逐个覆盖过,免得产物跑到 `bin/Release/`。
 
 `CMAKE_RUNTIME_OUTPUT_DIRECTORY` (→ `bin/`) and `include_directories(common)` are set
 before `add_subdirectory` so every sample inherits them; that inherited include path is
@@ -51,9 +77,7 @@ why sources use the angle-bracket form `#include <cuda_utils.cuh>`.
 
 1. Create `Samples/<name>/<name>.cu` plus a `CMakeLists.txt` with `add_executable(<name> <name>.cu)`.
 2. **Add `add_subdirectory(Samples/<name>)` to the root `CMakeLists.txt`** — this is easy
-   to forget, and the sample just never builds. `Samples/sharedMemory/` is currently in
-   exactly that state: written but unregistered, with no `CMakeLists.txt` and an empty
-   `switch` in `main`.
+   to forget, and the sample just never builds.
 
 Samples needing device-side kernel launches must opt into separable compilation, which
 makes CMake do the device link and pull in `cudadevrt`:

@@ -1,6 +1,6 @@
 # ---- 构建产物 ----
 bin/
-build/
+build*/
 cmake-build-*/
 cmake-build-debug/
 cmake-build-release/
@@ -13,6 +13,7 @@ cmake_install.cmake
 install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
+CMakeUserPresets.json
 _deps/
 
 # ---- 编译 / 链接产物 ----
@@ -26,6 +27,8 @@ _deps/
 *.exe
 *.out
 *.app
+*.pdb
+*.ilk
 
 # ---- CUDA 相关 ----
 *.ptx

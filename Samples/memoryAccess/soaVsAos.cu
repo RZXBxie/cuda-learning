@@ -70,7 +70,9 @@ int main() {
 
     // 有效带宽：只统计我们真正想要的数据(x)，读+写各一遍 => 2 * n * 4B。
     // AoS 实际还搬运了没用的 y/z，所以同样的"有效字节数"下耗时更长、有效带宽更低。
-    auto gbps = [](float ms) { return effectiveGBps(2.0 * n * sizeof(float), ms); };
+    // n 是 constexpr,按标准这里不算 odr-use、本可以不捕获,但 MSVC 会报 C3493,
+    // 所以显式写上捕获,保证 MSVC / GCC 都能编过。
+    auto gbps = [n](float ms) { return effectiveGBps(2.0 * n * sizeof(float), ms); };
 
     printf("n = %d particles, iters = %d\n\n", n, iters);
     printf("AoS: %7.4f ms/iter,  effective BW = %6.1f GB/s\n", aosMs, gbps(aosMs));
