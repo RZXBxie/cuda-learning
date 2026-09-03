@@ -50,10 +50,7 @@ __global__ void stencil1DConst(const float *in, float *out, const int n) {
 // ---------------------------------------------------------------------------
 // 变体 2:常量内存系数 + 共享内存缓存输入
 // ---------------------------------------------------------------------------
-//
-// 上面那版每个点被读了 8 遍(自己不读,左右各 4 个邻居来读它),重复量全靠 L1 兜。
-// 把 block 负责的那一段搬进共享内存,重复读就变成读 smem,确定性地只读一次全局。
-//
+
 // smem 布局:中间是本 block 的 blockDim.x 个点,两端各挂 RADIUS 个 halo(晕区),
 // 因为块边缘的线程要看到隔壁块的点:
 //
@@ -63,9 +60,7 @@ __global__ void stencil1DConst(const float *in, float *out, const int n) {
 //        前 R 个线程搬                          前 R 个线程搬
 //
 // sidx = threadIdx.x + RADIUS 是本线程数据在 smem 里的位置;
-// 左 halo 取 in[idx-RADIUS],右 halo 取 in[idx+blockDim.x] —— 注意右侧要用
-// blockDim.x 而不是 RADIUS 去偏移,它对应的是"本块最后一个点再往右数 threadIdx.x+1 个"。
-//
+// 左 halo 取 in[idx-RADIUS],右 halo 取 in[idx+blockDim.x]
 // halo 让 smem 的行宽变成 blockDim.x + 2*RADIUS = 136 个 float。
 // 这里不用担心 bank conflict:一维模板每个线程读的是 sidx±r,warp 内地址连续,
 // 32 个线程正好铺满 32 个 bank,无论 r 取几都只是整体平移。
@@ -153,12 +148,7 @@ int main(const int argc, char **argv) {
         iters = atoi(argv[2]);
     }
 
-    // 八阶精度中心差分的标准系数(h = 1)。由泰勒展开配平得来:
-    //   in[i+r] - in[i-r] = 2*( r*f' + r^3/3!*f''' + r^5/5!*f5 + r^7/7!*f7 + ... )
-    // 四个未知数配四个方程 —— Σ2*r*c_r = 1 让 f' 的系数归一,
-    // Σr^3*c_r = Σr^5*c_r = Σr^7*c_r = 0 把 f'''/f5/f7 三个误差项杀掉,
-    // 解唯一。第一个杀不掉的是 f9,故误差 O(h^8)。
-    // 规律:RADIUS = R 的中心差分给 2R 阶精度(R=1 是二阶的 (f[i+1]-f[i-1])/2)。
+    // 参考文档：https://my.feishu.cn/wiki/A2TawIXvvixu4Hk8P7XcQz3ynTc
     const float h_coef[RADIUS] = {4.0f / 5.0f, -1.0f / 5.0f, 4.0f / 105.0f, -1.0f / 280.0f};
 
     float *h_in = nullptr, *h_out = nullptr, *h_ref = nullptr;
